@@ -132,9 +132,9 @@ class PieCallbackTests(PieFixture, unittest.TestCase):
 
     def build(self, trigger, *, pie=None, scatter=None, built=None, selected=None, values=None, ids=None):
         with patch('treedex.callbacks.ctx', SimpleNamespace(triggered_id=trigger)):
-            return self.callbacks['build_plot'](1, 1, selected or [], scatter, pie,
+            return self.callbacks['build_plot'](1, 1, 0, selected or [], scatter, pie,
                                                 self.frame.to_dict('records'), built,
-                                                values or [], ids or [], [], [])
+                                                values or [], ids or [], [], [], None, {}, [], [])
 
     def test_dash_layout_and_dependencies_serialize(self):
         client = self.app.server.test_client()
@@ -146,10 +146,10 @@ class PieCallbackTests(PieFixture, unittest.TestCase):
         scatter = {'title': 'My scatter'}
         pie = self.options(hole=0.4)
         for page in range(1, 4):
-            menu, scatter_result, pie_result = show('pie', self.frame.to_dict('records'), 1, page, scatter, pie)
+            menu, scatter_result, pie_result = show('pie', self.frame.to_dict('records'), 1, page, {}, scatter, pie, {})
             self.assertIs(scatter_result, no_update)
             self.assertEqual(pie_result['hole'], 0.4)
-        _, scatter_result, pie_result = show('scatter', self.frame.to_dict('records'), 1, 3, scatter, pie)
+        _, scatter_result, pie_result = show('scatter', self.frame.to_dict('records'), 1, 3, {}, scatter, pie, {})
         self.assertEqual(scatter_result['title'], 'My scatter')
         self.assertIs(pie_result, no_update)
         with patch('treedex.callbacks.ctx', SimpleNamespace(triggered_id={'page': 3})):
@@ -185,7 +185,7 @@ class PieCallbackTests(PieFixture, unittest.TestCase):
         figure = make_pie_plot(self.frame, **self.options(names='Group', values='Value', facet_col='Facet'))
         with patch('treedex.callbacks.ctx', SimpleNamespace(triggered_id='pie-plot')):
             selected, rows = self.callbacks['synchronize_selection'](
-                None, None, {'points': [{'curveNumber': 0, 'label': 'A'}]}, [], [],
+                None, None, {'points': [{'curveNumber': 0, 'label': 'A'}]}, None, [], [],
                 self.frame.to_dict('records'), figure.to_plotly_json())
         self.assertEqual(selected, ['a', 'b'])
         self.assertEqual(rows, [0, 1])

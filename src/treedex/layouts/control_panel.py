@@ -1,6 +1,7 @@
 from dash import dcc, html
 
 from ete4.dashview import DEFAULT_SHAPE, normalize_shape
+from .plot_picker import plot_picker
 
 
 def _shape_button(shape, selected_shape):
@@ -74,20 +75,8 @@ def _tree_panel(initial_shape):
     )
 
 
-def _plot_type_label(name, asset=None, symbol=None):
-    visual = (
-        html.Img(src=asset, alt="", className="plot-type-option__image")
-        if asset
-        else html.Span(symbol, className="plot-type-option__symbol", **{"aria-hidden": "true"})
-    )
-    return html.Div(
-        [visual, html.Span(name, className="plot-type-option__name")],
-        className="plot-type-option",
-    )
-
-
 def _plots_panel():
-    """Plot selection controls; type-specific options are added later."""
+    """Plot selection controls and saved settings for each plot type."""
     return html.Div(
         [
             dcc.Store(id="scatter-options-store", storage_type="memory"),
@@ -95,6 +84,8 @@ def _plots_panel():
             dcc.Store(id="pie-options-store", storage_type="memory"),
             dcc.Store(id="pie-options-page", data=1, storage_type="memory"),
             dcc.Store(id="built-plot", storage_type="memory"),
+            dcc.Store(id="basic-options-store", data={}, storage_type="memory"),
+            dcc.Store(id="basic-options-page", data={}, storage_type="memory"),
             html.Div(
                 [
                     html.Div(
@@ -113,35 +104,8 @@ def _plots_panel():
                     ),
                     html.Div(
                         [
-                            html.Label("Plot type", htmlFor="plot-type-selector", className="plot-control__label"),
-                            dcc.Dropdown(
-                                id="plot-type-selector",
-                                options=[
-                                    {
-                                        "label": _plot_type_label(
-                                            "Scatter plot",
-                                            asset="/assets/scatter.svg",
-                                        ),
-                                        "value": "scatter",
-                                    },
-                                    {
-                                        "label": _plot_type_label(
-                                            "Pie chart",
-                                            asset="/assets/piechart.svg",
-                                        ),
-                                        "value": "pie",
-                                    },
-                                    {
-                                        "label": _plot_type_label("Violin plot", symbol="⌁"),
-                                        "value": "violin",
-                                    },
-                                ],
-                                value=None,
-                                placeholder="Select a plot type",
-                                clearable=False,
-                                searchable=False,
-                                className="plot-control__dropdown plot-type-dropdown",
-                            ),
+                            html.Label("Plot type", htmlFor="plot-picker-label", className="plot-control__label"),
+                            plot_picker(),
                         ],
                         className="plot-control",
                     ),
@@ -242,6 +206,7 @@ def top_control_panel(initial_shape=DEFAULT_SHAPE):
                 dcc.Tabs(
                     id="control-panel-tabs",
                     value="tree",
+                    mobile_breakpoint=0,
                     className="control-tabs",
                     parent_className="control-tabs-container",
                     content_className="control-tabs__content",

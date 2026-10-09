@@ -1,0 +1,31 @@
+// Run with: node tests/test_basic_options.js
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const vm = require("node:vm");
+const noUpdate = Symbol("no_update");
+const context = {window: {dash_clientside: {no_update: noUpdate, callback_context: {}}}};
+vm.runInNewContext(fs.readFileSync("src/treedex/assets/basic_options.js", "utf8"), context);
+const client = context.window.dash_clientside;
+const update = client.treedex.updateBasicOptions;
+const id = (plot, name) => ({type: "basic-option", plot, name});
+client.callback_context.triggered_id = id("line", "title");
+let [pages, stored] = update([], ["Edited title"], [id("line", "title")], {}, {});
+assert.equal(pages, noUpdate);
+assert.equal(stored.line.title, "Edited title");
+client.callback_context.triggered_id = {type: "basic-page-button", plot: "line", page: 3};
+const previous = stored;
+[pages, stored] = update([0, 0, 1], ["Last edit before clicking"], [id("line", "title")], {bar: 2}, stored);
+assert.equal(stored.line.title, "Last edit before clicking");
+assert.equal(previous.line.title, "Edited title");
+assert.equal(pages.line, 3);
+assert.equal(pages.bar, 2);
+client.callback_context.triggered_id = id("bar", "title");
+[pages, stored] = update([], ["Bar title", ""], [id("bar", "title"), id("bar", "subtitle")], pages, stored);
+assert.equal(stored.line.title, "Last edit before clicking");
+assert.equal(stored.bar.title, "Bar title");
+assert.equal(stored.bar.subtitle, null);
+client.callback_context.triggered_id = {type: "basic-page-button", plot: "line", page: 1};
+[pages, stored] = update([0, 0, 0], [], [], {line: 3}, stored);
+assert.equal(pages, noUpdate); // Mounting page buttons must not navigate.
+assert.equal(stored.line.title, "Last edit before clicking");
+console.log("Immediate option saves, atomic page changes, independent plot settings, and mount guards passed");

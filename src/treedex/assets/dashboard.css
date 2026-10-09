@@ -376,19 +376,8 @@
 
 .plots-panel--dropdown-overflow,
 .plot-controls-column,
-.plot-control,
-.plot-type-dropdown {
+.plot-control {
   position: relative;
-}
-
-.plot-type-dropdown {
-  z-index: 2300;
-}
-
-.plot-type-dropdown .Select-menu-outer {
-  z-index: 5000 !important;
-  overflow: visible;
-  background: var(--control-bg);
 }
 
 .plot-type-option {
@@ -713,10 +702,11 @@
   .tree-control { gap: 8px; }
   .tree-shape-button { min-width: 82px; padding: 7px 9px; }
   .plots-panel { min-height: 330px; flex-wrap: wrap; gap: 12px; }
-  .plot-controls-column { width: 240px; flex-basis: 240px; }
-  .plot-control--options { flex: 1; }
+  .plot-controls-column { width: 100%; flex-basis: 100%; flex-direction: row; }
+  .plot-controls-column > .plot-control { flex: 1; }
+  .plot-control--options { flex: 1 1 100%; }
   .scatter-options-page {
-    max-height: 220px;
+    max-height: 180px;
     grid-template-columns: repeat(2, minmax(130px, 1fr));
     overflow-y: auto;
     padding-right: 4px;
@@ -735,3 +725,60 @@
   .control-tab,
   .tree-shape-button { transition: none; }
 }
+
+/* The plot picker drills from categories into plot types in one popover. */
+.plot-picker { position: relative; z-index: 2300; }
+.plot-picker__summary {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--control-border);
+  border-radius: 9px;
+  background: var(--control-bg);
+  color: var(--control-text);
+  cursor: pointer;
+  font-size: 0.84rem;
+  list-style: none;
+}
+.plot-picker__summary::-webkit-details-marker { display: none; }
+.plot-picker__summary::after { content: "▾"; color: var(--control-muted); }
+.plot-picker[open] > .plot-picker__summary { border-color: var(--control-accent); }
+.plot-picker__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: min(380px, 65vh);
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--control-border);
+  border-radius: 9px;
+  background: var(--control-bg);
+  box-shadow: 0 8px 20px var(--control-shadow);
+}
+.plot-picker__item {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--control-text);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: left;
+}
+.plot-picker__summary:hover,
+.plot-picker__item:hover { background: var(--control-accent-soft); }
+.plot-picker__summary:focus-visible,
+.plot-picker__item:focus-visible { outline: 2px solid var(--control-accent); outline-offset: -2px; }
+.plot-picker__heading,
+.plot-picker__empty { padding: 8px 10px; color: var(--control-muted); font-size: 0.75rem; }
+.plot-picker__heading { font-weight: 700; }
