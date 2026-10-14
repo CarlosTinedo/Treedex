@@ -12,12 +12,16 @@ PLOT_LABELS = {
     "scatter": "Scatter plot", "line": "Line plot", "area": "Area plot",
     "bar": "Bar plot", "funnel": "Funnel plot", "pie": "Pie chart", "violin": "Violin plot",
 }
-SYMBOLS = {"line": "╱", "area": "◩", "bar": "▥", "funnel": "▽", "violin": "⌁"}
+PLOT_IMAGES = {
+    "scatter": "scatter.svg", "pie": "piechart.svg", "line": "line.svg",
+    "area": "area.svg", "bar": "barplot.svg",
+}
+SYMBOLS = {"funnel": "▽", "violin": "⌁"}
 
 
 def plot_label(name):
-    visual = html.Img(src=f"/assets/{'piechart' if name == 'pie' else 'scatter'}.svg",
-                      alt="", className="plot-type-option__image") if name in ("scatter", "pie") else html.Span(
+    visual = html.Img(src=f"/assets/{PLOT_IMAGES[name]}",
+                      alt="", className="plot-type-option__image") if name in PLOT_IMAGES else html.Span(
                           SYMBOLS[name], className="plot-type-option__symbol", **{"aria-hidden": "true"})
     return html.Div([visual, html.Span(PLOT_LABELS[name], className="plot-type-option__name")],
                     className="plot-type-option")
