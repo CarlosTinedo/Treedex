@@ -504,10 +504,16 @@
 }
 
 .scatter-option label {
+  display: block;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   color: var(--control-muted);
   font-size: 0.72rem;
   font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .scatter-option__dropdown,

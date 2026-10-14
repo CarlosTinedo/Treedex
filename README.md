@@ -69,6 +69,31 @@ at the top of the page to open the control panel. The **Rectangular** and
 
 Stop the application with `Ctrl+C` in the terminal.
 
+## Part-of-Whole plots
+
+In **Controls → Plots → Plot type → Part-of-Whole**, choose **Pie**, **Sunburst**,
+**Treemap**, or **Icicle**. Pie keeps its existing slice and donut controls.
+
+For the other three charts, select **Hierarchy levels** from root to leaves,
+such as `Order`, `Family`, then `Species`. The selection order defines the
+hierarchy; remove and reselect a level to change its position. A single
+`Species` level also works with the included example table. Choose a numeric
+**Sector values** column to size sectors by a measure, or leave it empty to
+count rows. **Root label** adds an optional common root. These charts use
+the uploaded table's metadata columns as levels.
+
+For a table that already describes nodes, choose **Node and parent rows** as
+the hierarchy source, then select node names, optional unique node IDs, and
+the parent column. Parent references must match IDs (or names when IDs are
+omitted); empty parents identify roots. **Total** parent values include their
+children, while **Additional to children** values are added to child values.
+
+The numbered option pages provide colors, hover fields, titles, visible depth,
+and sizing. Settings and page positions are saved separately for each chart.
+Click **Build plot** to apply edits. Clicking a sector selects all species in
+that branch in the table and tree; tree and table selections highlight the
+corresponding sectors using the last built settings.
+
 ## Verify the installation
 
 These commands confirm that ETE, Treedex, and the command-line entry point are

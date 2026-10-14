@@ -29,7 +29,7 @@ def pie_options_menu(options, frame, active_page):
                          placeholder=placeholder, className="scatter-option__input")
 
     def field(label, name, component, hint=None):
-        return html.Div([html.Label(label), component], className="scatter-option", title=hint or label)
+        return html.Div([html.Label(label, title=label), component], className="scatter-option", title=hint or label)
 
     if active_page == 1:
         fields = [

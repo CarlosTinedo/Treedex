@@ -86,6 +86,8 @@ def _plots_panel():
             dcc.Store(id="built-plot", storage_type="memory"),
             dcc.Store(id="basic-options-store", data={}, storage_type="memory"),
             dcc.Store(id="basic-options-page", data={}, storage_type="memory"),
+            dcc.Store(id="hierarchy-options-store", data={}, storage_type="memory"),
+            dcc.Store(id="hierarchy-options-page", data={}, storage_type="memory"),
             html.Div(
                 [
                     html.Div(

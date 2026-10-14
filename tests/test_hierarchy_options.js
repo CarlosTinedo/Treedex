@@ -1,0 +1,38 @@
+// Run inside the treedex environment: conda run -n treedex node tests/test_hierarchy_options.js
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const vm = require("node:vm");
+const noUpdate = Symbol("no_update");
+const context = {window: {dash_clientside: {no_update: noUpdate, callback_context: {}}}};
+vm.runInNewContext(fs.readFileSync("src/treedex/assets/hierarchy_options.js", "utf8"), context);
+const client = context.window.dash_clientside;
+const update = client.treedex.updateHierarchyOptions;
+const id = (plot, name) => ({type: "hierarchy-option", plot, name});
+client.callback_context.triggered_id = id("sunburst", "path");
+let [pages, stored] = update([], [["Order", "Family", "Species"]], [id("sunburst", "path")], {}, {});
+assert.equal(pages, noUpdate);
+assert.equal(JSON.stringify(stored.sunburst.path), '["Order","Family","Species"]');
+client.callback_context.triggered_id = {type: "hierarchy-page-button", plot: "sunburst", page: 3};
+const previous = stored;
+[pages, stored] = update([0, 0, 1], ["Edited before page change"], [id("sunburst", "title")], {treemap: 2}, stored);
+assert.equal(stored.sunburst.title, "Edited before page change");
+assert.equal(previous.sunburst.title, undefined);
+assert.equal(pages.sunburst, 3);
+assert.equal(pages.treemap, 2);
+client.callback_context.triggered_id = id("icicle", "title");
+[pages, stored] = update([], ["Icicle title", ""], [id("icicle", "title"), id("icicle", "subtitle")], pages, stored);
+assert.equal(stored.sunburst.title, "Edited before page change");
+assert.equal(stored.icicle.title, "Icicle title");
+assert.equal(stored.icicle.subtitle, null);
+client.callback_context.triggered_id = {type: "hierarchy-page-button", plot: "sunburst", page: 1};
+[pages, stored] = update([0, 0, 0], [], [], {sunburst: 3}, stored);
+assert.equal(pages, noUpdate);
+client.callback_context.triggered_id = id("sunburst", "hierarchy_mode");
+[pages, stored] = update([], ["nodes", "New node draft"], [id("sunburst", "hierarchy_mode"), id("sunburst", "names")], {sunburst: 1}, stored);
+assert.equal(pages.sunburst, 1);
+assert.equal(stored.sunburst.hierarchy_mode, "nodes");
+assert.equal(stored.sunburst.names, "New node draft");
+// Re-mounting the same mode must not keep rendering the menu.
+[pages, stored] = update([], ["nodes"], [id("sunburst", "hierarchy_mode")], {sunburst: 1}, stored);
+assert.equal(pages, noUpdate);
+console.log("Hierarchy drafts, level order, page navigation, mode changes, and mount guards passed");

@@ -12,6 +12,9 @@ from .layouts.pie_options import pie_options_menu
 from .basic_options import BASIC_PLOT_TYPES, normalize_basic_options, validate_basic_options
 from .components.basic import make_basic_plot
 from .layouts.basic_options import basic_options_menu
+from .hierarchy_options import HIERARCHY_PLOT_TYPES, normalize_hierarchy_options, validate_hierarchy_options
+from .components.hierarchy import make_hierarchy_plot
+from .layouts.hierarchy_options import hierarchy_options_menu
 from .layouts.plot_picker import CATEGORIES, PLOT_LABELS, picker_items, plot_label
 
 def register_callbacks(app, df_table, df_scatter):
@@ -44,6 +47,18 @@ def register_callbacks(app, df_table, df_scatter):
         State({"type": "basic-option", "plot": ALL, "name": ALL}, "id"),
         State("basic-options-page", "data"),
         State("basic-options-store", "data"),
+        prevent_initial_call=True,
+    )
+
+    app.clientside_callback(
+        ClientsideFunction(namespace="treedex", function_name="updateHierarchyOptions"),
+        Output("hierarchy-options-page", "data"),
+        Output("hierarchy-options-store", "data"),
+        Input({"type": "hierarchy-page-button", "plot": ALL, "page": ALL}, "n_clicks"),
+        Input({"type": "hierarchy-option", "plot": ALL, "name": ALL}, "value"),
+        State({"type": "hierarchy-option", "plot": ALL, "name": ALL}, "id"),
+        State("hierarchy-options-page", "data"),
+        State("hierarchy-options-store", "data"),
         prevent_initial_call=True,
     )
 
@@ -168,9 +183,12 @@ def register_callbacks(app, df_table, df_scatter):
         State("selected-species", "data"),
         State("species-table", "data"),
         State("pie-plot", "figure", allow_optional=True),
+        Input("hierarchy-plot", "clickData", allow_optional=True),
+        State("hierarchy-plot", "figure", allow_optional=True),
         prevent_initial_call=True,
     )
-    def synchronize_selection(tree_click, scatter_click, pie_click, basic_click, selected_rows, current, table_data, pie_figure):
+    def synchronize_selection(tree_click, scatter_click, pie_click, basic_click, selected_rows, current, table_data, pie_figure,
+                              hierarchy_click=None, hierarchy_figure=None):
         """Keep tree, plots and table selections in one shared state."""
         trigger = ctx.triggered_id
 
@@ -202,6 +220,23 @@ def register_callbacks(app, df_table, df_scatter):
                 else point.get("hovertext") or point.get("text")
             )
             selected = canonical_species([clicked_name], species)
+
+        elif trigger == "hierarchy-plot":
+            point = (hierarchy_click or {}).get("points", [{}])[0]
+            traces = (hierarchy_figure or {}).get("data", [])
+            trace_index = point.get("curveNumber", 0)
+            if not 0 <= trace_index < len(traces):
+                return no_update, no_update
+            trace = traces[trace_index]
+            node_id = point.get("id")
+            # Some Plotly events include only a point number, not the node ID.
+            if node_id is None:
+                index = point.get("pointNumber")
+                ids = trace.get("ids", [])
+                if isinstance(index, int) and 0 <= index < len(ids):
+                    node_id = ids[index]
+            membership = (trace.get("meta") or {}).get("species_by_id", {})
+            selected = canonical_species(membership.get(str(node_id), []), species)
 
         elif trigger == "pie-plot":
             point = (pie_click or {}).get("points", [{}])[0]
@@ -247,10 +282,19 @@ def register_callbacks(app, df_table, df_scatter):
         State("scatter-options-store", "data"),
         State("pie-options-store", "data"),
         State("basic-options-store", "data"),
+        Input("hierarchy-options-page", "data"),
+        State("hierarchy-options-store", "data"),
     )
-    def show_plot_options(plot_type, table_data, active_page, pie_page, basic_pages, stored_options, stored_pie_options, stored_basic_options):
+    def show_plot_options(plot_type, table_data, active_page, pie_page, basic_pages, stored_options, stored_pie_options, stored_basic_options,
+                          hierarchy_pages=None, stored_hierarchy_options=None):
         """Render controls for the plot type selected by the user."""
         label = html.Span("Plot options", className="plot-control__label")
+
+        if plot_type in HIERARCHY_PLOT_TYPES:
+            current_df, _, _, _ = scatter_columns(table_data)
+            options = normalize_hierarchy_options(plot_type, (stored_hierarchy_options or {}).get(plot_type), current_df)
+            page = (hierarchy_pages or {}).get(plot_type, 1)
+            return hierarchy_options_menu(plot_type, options, current_df, page), no_update, no_update
 
         if plot_type in BASIC_PLOT_TYPES:
             current_df, _, _, _ = scatter_columns(table_data)
@@ -319,7 +363,7 @@ def register_callbacks(app, df_table, df_scatter):
 
         def field(label_text, name, component):
             return html.Div(
-                [html.Label(label_text), component],
+                [html.Label(label_text, title=label_text), component],
                 className="scatter-option",
             )
 
@@ -501,16 +545,29 @@ def register_callbacks(app, df_table, df_scatter):
         State("basic-options-store", "data"),
         State({"type": "basic-option", "plot": ALL, "name": ALL}, "value"),
         State({"type": "basic-option", "plot": ALL, "name": ALL}, "id"),
+        Input("build-hierarchy-plot", "n_clicks", allow_optional=True),
+        State("hierarchy-options-store", "data"),
+        State({"type": "hierarchy-option", "plot": ALL, "name": ALL}, "value"),
+        State({"type": "hierarchy-option", "plot": ALL, "name": ALL}, "id"),
         prevent_initial_call=True,
     )
     def build_plot(
         scatter_clicks, pie_clicks, basic_clicks, selected_species, scatter_options,
         pie_options, table_data, built_plot, pie_values, pie_ids,
         scatter_values, scatter_ids, selected_plot_type, basic_options, basic_values, basic_ids,
+        hierarchy_clicks=None, hierarchy_options=None, hierarchy_values=None, hierarchy_ids=None,
     ):
         """Build on demand; selection updates use the last successfully built settings."""
         trigger = ctx.triggered_id
-        if trigger == "build-basic-plot":
+        if trigger == "build-hierarchy-plot":
+            if not hierarchy_clicks or selected_plot_type not in HIERARCHY_PLOT_TYPES:
+                return no_update, no_update, no_update
+            plot_type = selected_plot_type
+            stored_options = dict((hierarchy_options or {}).get(plot_type) or {})
+            for component_id, value in zip(hierarchy_ids or [], hierarchy_values or []):
+                if component_id["plot"] == plot_type:
+                    stored_options[component_id["name"]] = None if value == "" else value
+        elif trigger == "build-basic-plot":
             if not basic_clicks or selected_plot_type not in BASIC_PLOT_TYPES:
                 return no_update, no_update, no_update
             plot_type = selected_plot_type
@@ -533,7 +590,10 @@ def register_callbacks(app, df_table, df_scatter):
             stored_options = built_plot["options"]
 
         current_df, _, _, _ = scatter_columns(table_data)
-        if plot_type in BASIC_PLOT_TYPES:
+        if plot_type in HIERARCHY_PLOT_TYPES:
+            options = normalize_hierarchy_options(plot_type, stored_options, current_df)
+            errors = validate_hierarchy_options(plot_type, options, current_df)
+        elif plot_type in BASIC_PLOT_TYPES:
             options = normalize_basic_options(plot_type, stored_options, current_df)
             errors = validate_basic_options(plot_type, options, current_df)
         else:
@@ -545,7 +605,9 @@ def register_callbacks(app, df_table, df_scatter):
             return no_update, html.Ul([html.Li(error) for error in errors]), no_update
 
         try:
-            if plot_type in BASIC_PLOT_TYPES:
+            if plot_type in HIERARCHY_PLOT_TYPES:
+                figure = make_hierarchy_plot(plot_type, current_df, selected_species=selected_species, **options)
+            elif plot_type in BASIC_PLOT_TYPES:
                 figure = make_basic_plot(plot_type, current_df, selected_species=selected_species, **options)
             elif plot_type == "pie":
                 figure = make_pie_plot(current_df, selected_species=selected_species, **options)
@@ -566,7 +628,7 @@ def register_callbacks(app, df_table, df_scatter):
         } if fixed_size else None
         return html.Div(
             dcc.Graph(
-                id="basic-plot" if plot_type in BASIC_PLOT_TYPES else f"{plot_type}-plot", figure=figure,
+                id="hierarchy-plot" if plot_type in HIERARCHY_PLOT_TYPES else "basic-plot" if plot_type in BASIC_PLOT_TYPES else f"{plot_type}-plot", figure=figure,
                 config={**scatter_config, "responsive": not fixed_size},
                 responsive=not fixed_size,
                 style=graph_style,

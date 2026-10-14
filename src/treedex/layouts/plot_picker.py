@@ -4,19 +4,20 @@ from dash import dcc, html
 
 CATEGORIES = {
     "basics": ("Basics", ("scatter", "line", "area", "bar", "funnel")),
-    "part-of-whole": ("Part-of-Whole", ("pie",)),
+    "part-of-whole": ("Part-of-Whole", ("pie", "sunburst", "treemap", "icicle")),
     "1d": ("1D Distributions", ("violin",)),
     "2d": ("2D Distributions", ()),
 }
 PLOT_LABELS = {
     "scatter": "Scatter plot", "line": "Line plot", "area": "Area plot",
     "bar": "Bar plot", "funnel": "Funnel plot", "pie": "Pie chart", "violin": "Violin plot",
+    "sunburst": "Sunburst chart", "treemap": "Treemap", "icicle": "Icicle chart",
 }
 PLOT_IMAGES = {
     "scatter": "scatter.svg", "pie": "piechart.svg", "line": "line.svg",
     "area": "area.svg", "bar": "barplot.svg",
 }
-SYMBOLS = {"funnel": "▽", "violin": "⌁"}
+SYMBOLS = {"funnel": "▽", "violin": "⌁", "sunburst": "◉", "treemap": "▦", "icicle": "▤"}
 
 
 def plot_label(name):
