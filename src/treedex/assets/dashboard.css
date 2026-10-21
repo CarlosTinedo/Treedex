@@ -788,3 +788,45 @@
 .plot-picker__heading,
 .plot-picker__empty { padding: 8px 10px; color: var(--control-muted); font-size: 0.75rem; }
 .plot-picker__heading { font-weight: 700; }
+
+/* Multi-plot workspace */
+.plots-layout { display:flex; min-width:0; min-height:0; flex:1 1 auto; position:relative; overflow:hidden; }
+.plots-workspace { display:flex; flex-direction:column; min-width:0; min-height:0; flex:1 1 auto; }
+.plots-sidebar-toggle { align-self:flex-end; border:1px solid var(--control-border); border-radius:7px; background:white; color:var(--control-accent-dark); font-weight:700; padding:4px 12px; cursor:pointer; margin:0 4px 6px; }
+#main-plot-area { display:flex; flex-direction:row; gap:12px; flex:1 1 auto; overflow-x:auto; overflow-y:hidden; padding:4px 4px 12px; scroll-snap-type:x proximity; }
+.managed-plot-card { flex:0 0 min(560px, 85%); min-width:320px; height:100%; min-height:0; border:1px solid var(--control-border); border-radius:12px; background:white; display:flex; flex-direction:column; overflow:hidden; scroll-snap-align:start; }
+.managed-plot-heading { flex:0 0 36px; display:flex; align-items:center; justify-content:space-between; padding:6px 12px; border-bottom:1px solid var(--control-border); font-size:.85rem; }
+.managed-plot-body { min-height:0; flex:1; overflow:hidden; }
+.managed-plot-body .dashboard-scatter-plot { height:100%; width:100%; }
+.plots-sidebar { flex:0 0 245px; width:245px; min-width:0; border-left:1px solid var(--control-border); background:var(--control-bg); display:flex; flex-direction:column; gap:12px; padding:12px; overflow-y:auto; transition: flex-basis .2s ease, width .2s ease, padding .2s ease; }
+.plots-sidebar.is-closed { flex-basis:0; width:0; padding:0; border:0; overflow:hidden; }
+.plots-sidebar-heading { display:flex; justify-content:space-between; align-items:center; white-space:nowrap; }
+.plots-sidebar-close, .plots-sidebar-action { border:0; background:transparent; color:var(--control-muted); cursor:pointer; }
+.plots-sidebar-close { font-size:24px; }
+.plots-sidebar-list { display:flex; flex-direction:column; gap:9px; }
+.plots-sidebar-item { padding:8px; border:1px solid var(--control-border); border-radius:9px; }
+.plots-sidebar-select { width:100%; border:0; background:transparent; text-align:left; font-weight:650; cursor:pointer; color:var(--control-text); padding:5px; }
+.plots-sidebar-select.is-active { color:var(--control-accent-dark); background:var(--control-accent-soft); border-radius:5px; }
+.plots-sidebar-actions { display:flex; justify-content:space-between; gap:3px; margin-top:7px; }
+.plots-sidebar-action { font-size:16px; padding:4px; }
+.plots-sidebar-action:hover { color:var(--control-accent-dark); background:var(--control-accent-soft); }
+.plots-sidebar-add { padding:9px; border:1px solid var(--control-accent); border-radius:8px; background:var(--control-accent); color:white; font-weight:700; cursor:pointer; white-space:nowrap; }
+.dashboard-empty-state { min-width:100%; }
+@media(max-width:760px) { .plots-sidebar { flex-basis:190px; width:190px; } .managed-plot-card { flex-basis:85%; } }
+
+/* Evitar solapamiento entre Current plot y Plot type */
+
+.plot-controls-column > .plot-control:first-child {
+    position: relative;
+    z-index: 2400;
+}
+
+.plot-controls-column > .plot-control:nth-child(2) {
+    position: relative;
+    z-index: 2300;
+}
+
+/* Mantener el menú desplegable por encima de otros controles */
+#current-plot-selector .Select-menu-outer {
+    z-index: 2500 !important;
+}
