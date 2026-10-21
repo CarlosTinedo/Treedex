@@ -16,6 +16,7 @@ from .hierarchy_options import HIERARCHY_PLOT_TYPES, normalize_hierarchy_options
 from .components.hierarchy import make_hierarchy_plot
 from .layouts.hierarchy_options import hierarchy_options_menu
 from .layouts.plot_picker import CATEGORIES, PLOT_LABELS, picker_items, plot_label
+from .layouts.dashboard_layout import create_home_panel
 
 def register_callbacks(app, df_table, df_scatter):
 
@@ -176,19 +177,14 @@ def register_callbacks(app, df_table, df_scatter):
         Output("selected-species", "data"),
         Output("species-table", "selected_rows"),
         Input("tree-graph", "clickData"),
-        Input("scatter-plot", "clickData", allow_optional=True),
-        Input("pie-plot", "clickData", allow_optional=True),
-        Input("basic-plot", "clickData", allow_optional=True),
+        Input({"type": "managed-plot", "index": ALL}, "clickData"),
         Input("species-table", "selected_rows"),
         State("selected-species", "data"),
         State("species-table", "data"),
-        State("pie-plot", "figure", allow_optional=True),
-        Input("hierarchy-plot", "clickData", allow_optional=True),
-        State("hierarchy-plot", "figure", allow_optional=True),
+        State({"type": "managed-plot", "index": ALL}, "figure"),
         prevent_initial_call=True,
     )
-    def synchronize_selection(tree_click, scatter_click, pie_click, basic_click, selected_rows, current, table_data, pie_figure,
-                              hierarchy_click=None, hierarchy_figure=None):
+    def synchronize_selection(tree_click, plot_clicks, selected_rows, current, table_data, plot_figures):
         """Keep tree, plots and table selections in one shared state."""
         trigger = ctx.triggered_id
 
@@ -210,42 +206,34 @@ def register_callbacks(app, df_table, df_scatter):
                 return no_update, no_update
             return selected, no_update
 
-        if trigger in ("scatter-plot", "basic-plot"):
-            click = basic_click if trigger == "basic-plot" else scatter_click
-            point = (click or {}).get("points", [{}])[0]
-            customdata = point.get("customdata")
-            clicked_name = (
-                customdata[0]
-                if isinstance(customdata, (list, tuple)) and customdata
-                else point.get("hovertext") or point.get("text")
-            )
-            selected = canonical_species([clicked_name], species)
-
-        elif trigger == "hierarchy-plot":
-            point = (hierarchy_click or {}).get("points", [{}])[0]
-            traces = (hierarchy_figure or {}).get("data", [])
-            trace_index = point.get("curveNumber", 0)
-            if not 0 <= trace_index < len(traces):
+        if isinstance(trigger, dict) and trigger.get("type") == "managed-plot":
+            # Dash wildcard inputs and states use the same ordering.
+            clicked_id = trigger.get("index")
+            # Select the graph by its component ID, not by its position in the row.
+            graph_ids = ctx.inputs_list[1]
+            match = next((i for i, item in enumerate(graph_ids)
+                          if item["id"].get("index") == clicked_id), None)
+            if match is None or match >= len(plot_figures or []):
                 return no_update, no_update
-            trace = traces[trace_index]
-            node_id = point.get("id")
-            # Some Plotly events include only a point number, not the node ID.
-            if node_id is None:
-                index = point.get("pointNumber")
-                ids = trace.get("ids", [])
-                if isinstance(index, int) and 0 <= index < len(ids):
-                    node_id = ids[index]
-            membership = (trace.get("meta") or {}).get("species_by_id", {})
-            selected = canonical_species(membership.get(str(node_id), []), species)
-
-        elif trigger == "pie-plot":
-            point = (pie_click or {}).get("points", [{}])[0]
-            traces = (pie_figure or {}).get("data", [])
-            trace_index = point.get("curveNumber", 0)
-            if not 0 <= trace_index < len(traces):
-                return no_update, no_update
-            membership = (traces[trace_index].get("meta") or {}).get("species_by_label", {})
-            selected = canonical_species(membership.get(str(point.get("label")), []), species)
+            point = ((plot_clicks or [])[match] or {}).get("points", [{}])[0]
+            trace_list = ((plot_figures or [])[match] or {}).get("data", [])
+            curve = point.get("curveNumber", 0)
+            trace = trace_list[curve] if isinstance(curve, int) and 0 <= curve < len(trace_list) else {}
+            metadata = trace.get("meta") or {}
+            if "species_by_id" in metadata:
+                node_id = point.get("id")
+                if node_id is None:
+                    index = point.get("pointNumber")
+                    ids = trace.get("ids") or []
+                    if isinstance(index, int) and 0 <= index < len(ids):
+                        node_id = ids[index]
+                selected = canonical_species(metadata["species_by_id"].get(str(node_id), []), species)
+            elif "species_by_label" in metadata:
+                selected = canonical_species(metadata["species_by_label"].get(str(point.get("label")), []), species)
+            else:
+                custom = point.get("customdata")
+                clicked = custom[0] if isinstance(custom, (list, tuple)) and custom else point.get("hovertext") or point.get("text")
+                selected = canonical_species([clicked], species)
 
         elif trigger == "tree-graph":
             point = (tree_click or {}).get("points", [{}])[0]
@@ -526,17 +514,19 @@ def register_callbacks(app, df_table, df_scatter):
         return updated
 
     @app.callback(
-        Output("main-plot-area", "children"),
+        Output("plot-instances", "data", allow_duplicate=True),
         Output("scatter-validation-message", "children"),
         Output("built-plot", "data"),
         Input("build-scatter-plot", "n_clicks", allow_optional=True),
         Input("build-pie-plot", "n_clicks", allow_optional=True),
         Input("build-basic-plot", "n_clicks", allow_optional=True),
-        Input("selected-species", "data"),
+        State("selected-species", "data"),
         State("scatter-options-store", "data"),
         State("pie-options-store", "data"),
         State("species-table", "data"),
         State("built-plot", "data"),
+        State("plot-instances", "data"),
+        State("current-plot-selector", "value"),
         State({"type": "pie-option", "name": ALL}, "value"),
         State({"type": "pie-option", "name": ALL}, "id"),
         State({"type": "scatter-option", "name": ALL}, "value"),
@@ -553,7 +543,7 @@ def register_callbacks(app, df_table, df_scatter):
     )
     def build_plot(
         scatter_clicks, pie_clicks, basic_clicks, selected_species, scatter_options,
-        pie_options, table_data, built_plot, pie_values, pie_ids,
+        pie_options, table_data, built_plot, instances, active_id, pie_values, pie_ids,
         scatter_values, scatter_ids, selected_plot_type, basic_options, basic_values, basic_ids,
         hierarchy_clicks=None, hierarchy_options=None, hierarchy_values=None, hierarchy_ids=None,
     ):
@@ -583,11 +573,8 @@ def register_callbacks(app, df_table, df_scatter):
             values, ids = (pie_values, pie_ids) if plot_type == "pie" else (scatter_values, scatter_ids)
             for component_id, value in zip(ids or [], values or []):
                 stored_options[component_id["name"]] = None if value == "" else value
-        elif not built_plot:
-            return no_update, no_update, no_update
         else:
-            plot_type = built_plot["type"]
-            stored_options = built_plot["options"]
+            return no_update, no_update, no_update
 
         current_df, _, _, _ = scatter_columns(table_data)
         if plot_type in HIERARCHY_PLOT_TYPES:
@@ -621,22 +608,163 @@ def register_callbacks(app, df_table, df_scatter):
         except (ValueError, TypeError, KeyError) as exc:
             return no_update, f"Could not build {plot_type} plot: {exc}", no_update
 
-        fixed_size = any(options.get(key) is not None for key in ("width", "height"))
-        graph_style = {
-            "width": options.get("width") or "100%",
-            "height": options.get("height") or "100%",
-        } if fixed_size else None
-        return html.Div(
-            dcc.Graph(
-                id="hierarchy-plot" if plot_type in HIERARCHY_PLOT_TYPES else "basic-plot" if plot_type in BASIC_PLOT_TYPES else f"{plot_type}-plot", figure=figure,
-                config={**scatter_config, "responsive": not fixed_size},
-                responsive=not fixed_size,
-                style=graph_style,
-                className="dashboard-scatter-plot",
-            ),
-            className="dashboard-plot-card",
-            style={"overflow": "auto"} if fixed_size else None,
-        ), "", {"type": plot_type, "options": options}
+        updated = [dict(item) for item in (instances or [])]
+        target = next((item for item in updated if item["id"] == active_id), None)
+        if target is None:
+            return no_update, "Select a plot before building it.", no_update
+        target.update(type=plot_type, options=options, visible=True)
+        return updated, "", {"type": plot_type, "options": options}
+
+    @app.callback(
+        Output("plot-instances", "data"),
+        Output("current-plot-selector", "value"),
+        Input("sidebar-add-plot", "n_clicks"),
+        Input({"type": "plot-action", "action": ALL, "index": ALL}, "n_clicks"),
+        State("plot-instances", "data"),
+        State("current-plot-selector", "value"),
+        prevent_initial_call=True,
+    )
+    def manage_plots(add_clicks, action_clicks, instances, active_id):
+        plots = [dict(item) for item in (instances or [])]
+        trigger = ctx.triggered_id
+        if trigger == "sidebar-add-plot":
+            if not add_clicks:
+                return no_update, no_update
+            numbers = [int(item["id"].split("_")[-1]) for item in plots if item["id"].split("_")[-1].isdigit()]
+            new_id = f"plot_{max(numbers, default=0) + 1}"
+            plots.append({"id": new_id, "type": None, "options": {}, "visible": True, "pinned": False})
+            return plots, new_id
+        if not isinstance(trigger, dict) or not any(action_clicks or []):
+            return no_update, no_update
+        plot_id, action = trigger.get("index"), trigger.get("action")
+        index = next((i for i, item in enumerate(plots) if item["id"] == plot_id), None)
+        if index is None:
+            return no_update, no_update
+        if action == "select":
+            return no_update, plot_id
+        if action == "delete":
+            plots.pop(index)
+            if not plots:
+                plots = [{"id": "plot_1", "type": None, "options": {}, "visible": True, "pinned": False}]
+            return plots, plots[min(index, len(plots)-1)]["id"] if active_id == plot_id else no_update
+        if action in ("visible", "pinned"):
+            key = "visible" if action == "visible" else "pinned"
+            plots[index][key] = not plots[index].get(key, key == "visible")
+            if action == "pinned" and plots[index]["pinned"]:
+                plots[index]["visible"] = True
+            if action == "visible" and not plots[index]["visible"]:
+                plots[index]["pinned"] = False
+        elif action in ("left", "right"):
+            destination = index + (-1 if action == "left" else 1)
+            if 0 <= destination < len(plots):
+                plots[index], plots[destination] = plots[destination], plots[index]
+        return plots, no_update
+
+    @app.callback(
+        Output("current-plot-selector", "options"),
+        Output("plots-sidebar-list", "children"),
+        Input("plot-instances", "data"),
+        Input("current-plot-selector", "value"),
+    )
+    def show_plot_manager(instances, active):
+        plots = instances or []
+        options = [{"label": p["id"], "value": p["id"]} for p in plots]
+        rows = []
+        for item in plots:
+            pid = item["id"]
+            def action(name, label, title):
+                return html.Button(label, id={"type": "plot-action", "action": name, "index": pid},
+                                   n_clicks=0, title=title, className="plots-sidebar-action")
+            rows.append(html.Div([
+                html.Button(pid + (" · " + item["type"] if item.get("type") else " · empty"),
+                            id={"type": "plot-action", "action": "select", "index": pid},
+                            n_clicks=0, className="plots-sidebar-select" + (" is-active" if pid == active else "")),
+                html.Div([
+                    action("visible", "◉" if item.get("visible", True) else "◯", "Show / hide"),
+                    action("pinned", "📌" if item.get("pinned") else "♧", "Pin / unpin"),
+                    action("left", "←", "Move left"), action("right", "→", "Move right"),
+                    action("delete", "×", "Delete plot"),
+                ], className="plots-sidebar-actions"),
+            ], className="plots-sidebar-item", key=pid))
+        return options, rows
+
+    @app.callback(
+        Output("plots-sidebar", "className"),
+        Input("toggle-plots-sidebar", "n_clicks"),
+        Input("close-plots-sidebar", "n_clicks"),
+        State("plots-sidebar", "className"),
+        prevent_initial_call=True,
+    )
+    def toggle_sidebar(toggle, close, current):
+        return "plots-sidebar is-closed" if ctx.triggered_id == "close-plots-sidebar" or current == "plots-sidebar" else "plots-sidebar"
+
+    @app.callback(
+        Output("plot-type-selector", "value", allow_duplicate=True),
+        Output("plot-picker-label", "children", allow_duplicate=True),
+        Output("scatter-options-store", "data", allow_duplicate=True),
+        Output("pie-options-store", "data", allow_duplicate=True),
+        Output("basic-options-store", "data", allow_duplicate=True),
+        Output("hierarchy-options-store", "data", allow_duplicate=True),
+        Input("current-plot-selector", "value"),
+        State("plot-instances", "data"),
+        State("basic-options-store", "data"),
+        State("hierarchy-options-store", "data"),
+        prevent_initial_call=True,
+    )
+    def restore_plot_settings(active, instances, basics, hierarchies):
+        item = next((p for p in (instances or []) if p["id"] == active), None)
+        if item is None:
+            return (no_update,) * 6
+        kind, options = item.get("type"), item.get("options") or {}
+        basic_store, hierarchy_store = dict(basics or {}), dict(hierarchies or {})
+        if kind in BASIC_PLOT_TYPES:
+            basic_store[kind] = options
+        if kind in HIERARCHY_PLOT_TYPES:
+            hierarchy_store[kind] = options
+        return kind, plot_label(kind) if kind in PLOT_LABELS else "Select a plot type", options if kind == "scatter" else no_update, options if kind == "pie" else no_update, basic_store, hierarchy_store
+
+    @app.callback(
+        Output("main-plot-area", "children"),
+        Input("plot-instances", "data"),
+        Input("selected-species", "data"),
+        Input("species-table", "data"),
+    )
+    def render_managed_plots(instances, selected_species, table_data):
+        current_df, _, _, _ = scatter_columns(table_data)
+        cards = []
+        for item in (instances or []):
+            if not item.get("visible", True) or not item.get("type"):
+                continue
+            kind = item["type"]
+            stored = item.get("options") or {}
+            try:
+                if kind in HIERARCHY_PLOT_TYPES:
+                    options = normalize_hierarchy_options(kind, stored, current_df)
+                    figure = make_hierarchy_plot(kind, current_df, selected_species=selected_species, **options)
+                elif kind in BASIC_PLOT_TYPES:
+                    options = normalize_basic_options(kind, stored, current_df)
+                    figure = make_basic_plot(kind, current_df, selected_species=selected_species, **options)
+                elif kind == "pie":
+                    options = normalize_pie_options(stored, current_df)
+                    figure = make_pie_plot(current_df, selected_species=selected_species, **options)
+                elif kind == "scatter":
+                    options = normalize_scatter_options(stored, current_df)
+                    lookup = {str(name).casefold() for name in (selected_species or [])}
+                    selection_idx = [i for i, name in enumerate(current_df["Species"]) if str(name).casefold() in lookup]
+                    figure = make_scatter_plot(current_df, selection=selection_idx, **options)
+                else:
+                    continue
+                figure.update_layout(autosize=True, width=None, height=None)
+                body = dcc.Graph(id={"type": "managed-plot", "index": item["id"]}, figure=figure,
+                                 config={**scatter_config, "responsive": True}, responsive=True,
+                                 className="dashboard-scatter-plot")
+            except (ValueError, TypeError, KeyError) as exc:
+                body = html.Div(f"Could not render {item['id']}: {exc}", className="scatter-validation-message")
+            cards.append(html.Div([
+                html.Div([html.Strong(item["id"]), html.Span(" 📌" if item.get("pinned") else "")], className="managed-plot-heading"),
+                html.Div(body, className="managed-plot-body"),
+            ], className="managed-plot-card", key=item["id"]))
+        return cards if cards else [create_home_panel()]
 
     app.clientside_callback(
         """
