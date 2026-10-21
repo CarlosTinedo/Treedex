@@ -84,6 +84,7 @@ def _plots_panel():
             dcc.Store(id="pie-options-store", storage_type="memory"),
             dcc.Store(id="pie-options-page", data=1, storage_type="memory"),
             dcc.Store(id="built-plot", storage_type="memory"),
+            dcc.Store(id="plot-instances", data=[{"id": "plot_1", "type": None, "options": {}, "visible": True, "pinned": False}], storage_type="session"),
             dcc.Store(id="basic-options-store", data={}, storage_type="memory"),
             dcc.Store(id="basic-options-page", data={}, storage_type="memory"),
             dcc.Store(id="hierarchy-options-store", data={}, storage_type="memory"),
